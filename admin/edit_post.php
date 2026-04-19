@@ -73,14 +73,32 @@ $allCategories = $categoriesStmt->fetchAll();
                 </select>
             </div>
 
+            <div class="mb-6">
+                <label class="block text-sm font-bold text-slate-700 mb-2">SEO Keywords (Comma separated)</label>
+                <input type="text" id="postKeywords" name="seo_keywords" class="w-full border border-slate-300 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-brand focus:border-brand transition-colors text-lg" value="<?= htmlspecialchars($post['seo_keywords'] ?? '') ?>" placeholder="e.g. AI, future, technology">
+            </div>
+
             <div class="mb-6 relative">
                 <label class="block text-sm font-bold text-slate-700 mb-2">Blog Details</label>
                 <!-- Rich text controls -->
                 <div class="border border-slate-300 border-b-0 rounded-t-lg p-2 bg-slate-50 flex gap-2 flex-wrap items-center">
-                   <button type="button" onclick="document.execCommand('bold',false,null)" class="p-2 hover:bg-slate-200 rounded text-slate-600 transition-colors"><i class="fa-solid fa-bold"></i></button>
-                   <button type="button" onclick="document.execCommand('italic',false,null)" class="p-2 hover:bg-slate-200 rounded text-slate-600 transition-colors"><i class="fa-solid fa-italic"></i></button>
-                   <button type="button" onclick="document.execCommand('justifyCenter',false,null)" class="p-2 hover:bg-slate-200 rounded text-slate-600 transition-colors"><i class="fa-solid fa-align-center"></i></button>
-                   <button type="button" onclick="document.execCommand('insertUnorderedList',false,null)" class="p-2 hover:bg-slate-200 rounded text-slate-600 transition-colors"><i class="fa-solid fa-list"></i></button>
+                   <button type="button" onclick="document.execCommand('bold',false,null)" class="p-2 hover:bg-slate-200 rounded text-slate-600 transition-colors" title="Bold"><i class="fa-solid fa-bold"></i></button>
+                   <button type="button" onclick="document.execCommand('italic',false,null)" class="p-2 hover:bg-slate-200 rounded text-slate-600 transition-colors" title="Italic"><i class="fa-solid fa-italic"></i></button>
+                   <button type="button" onclick="document.execCommand('underline',false,null)" class="p-2 hover:bg-slate-200 rounded text-slate-600 transition-colors" title="Underline"><i class="fa-solid fa-underline"></i></button>
+                   <button type="button" onclick="document.execCommand('strikeThrough',false,null)" class="p-2 hover:bg-slate-200 rounded text-slate-600 transition-colors" title="Strikethrough"><i class="fa-solid fa-strikethrough"></i></button>
+                   <div class="h-6 w-px bg-slate-300 mx-1"></div>
+                   <button type="button" onclick="document.execCommand('formatBlock',false,'H2')" class="p-2 hover:bg-slate-200 rounded text-slate-600 transition-colors font-bold" title="Heading 2">H2</button>
+                   <button type="button" onclick="document.execCommand('formatBlock',false,'H3')" class="p-2 hover:bg-slate-200 rounded text-slate-600 transition-colors font-bold" title="Heading 3">H3</button>
+                   <div class="h-6 w-px bg-slate-300 mx-1"></div>
+                   <button type="button" onclick="document.execCommand('justifyLeft',false,null)" class="p-2 hover:bg-slate-200 rounded text-slate-600 transition-colors" title="Align Left"><i class="fa-solid fa-align-left"></i></button>
+                   <button type="button" onclick="document.execCommand('justifyCenter',false,null)" class="p-2 hover:bg-slate-200 rounded text-slate-600 transition-colors" title="Align Center"><i class="fa-solid fa-align-center"></i></button>
+                   <button type="button" onclick="document.execCommand('justifyRight',false,null)" class="p-2 hover:bg-slate-200 rounded text-slate-600 transition-colors" title="Align Right"><i class="fa-solid fa-align-right"></i></button>
+                   <div class="h-6 w-px bg-slate-300 mx-1"></div>
+                   <button type="button" onclick="document.execCommand('insertUnorderedList',false,null)" class="p-2 hover:bg-slate-200 rounded text-slate-600 transition-colors" title="Bulleted List"><i class="fa-solid fa-list"></i></button>
+                   <button type="button" onclick="document.execCommand('insertOrderedList',false,null)" class="p-2 hover:bg-slate-200 rounded text-slate-600 transition-colors" title="Numbered List"><i class="fa-solid fa-list-ol"></i></button>
+                   <div class="h-6 w-px bg-slate-300 mx-1"></div>
+                   <button type="button" onclick="let url=prompt('Enter link URL:'); if(url) document.execCommand('createLink', false, url);" class="p-2 hover:bg-slate-200 rounded text-slate-600 transition-colors" title="Insert Link"><i class="fa-solid fa-link"></i></button>
+                   <button type="button" onclick="document.execCommand('unlink',false,null)" class="p-2 hover:bg-slate-200 rounded text-slate-600 transition-colors" title="Remove Link"><i class="fa-solid fa-link-slash"></i></button>
                    <div class="flex-grow"></div>
                    <button type="button" id="btnGenContent" class="bg-gradient-to-r from-violet-500 to-blue-500 hover:from-violet-600 hover:to-blue-600 text-white font-semibold py-1.5 px-4 rounded-md shadow-sm transition-all flex items-center gap-2 text-sm">
                        <i class="fa-solid fa-robot"></i> Fill with AI
@@ -185,7 +203,17 @@ document.addEventListener('DOMContentLoaded', () => {
                 const data = await response.json();
                 if (data.error) throw new Error(data.error);
                 
-                contentEditor.innerHTML = data.content;
+                contentEditor.innerHTML = data.content || '';
+                if(data.title && confirm("Do you want to overwrite your current Title with the AI suggested title?")) {
+                    document.getElementById('postTitle').value = data.title;
+                }
+                if(data.excerpt && confirm("Do you want to overwrite your current Excerpt with the AI suggested excerpt?")) {
+                    document.getElementById('postExcerpt').value = data.excerpt;
+                }
+                if(data.seo_keywords) {
+                    let kwInput = document.getElementById('postKeywords');
+                    if(kwInput) kwInput.value = data.seo_keywords;
+                }
             } catch (err) {
                 alert('AI Error: ' + err.message);
             } finally {

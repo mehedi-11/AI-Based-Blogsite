@@ -14,6 +14,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
             $stmt = $db->prepare("INSERT INTO categories (name, slug) VALUES (?, ?)");
             $stmt->execute([$name, $slug]);
             $msg = "Category successfully created.";
+            log_notification('category_added', "New category created: $name");
         } catch (PDOException $e) {
             if (strpos($e->getMessage(), 'Duplicate entry') !== false) {
                 $err = "That category name already exists.";
@@ -38,6 +39,7 @@ if (isset($_GET['delete'])) {
         
         $db->commit();
         $msg = "Category deleted. Any associated posts are now 'Uncategorized'.";
+        log_notification('category_deleted', "Category ID #$del was deleted. Associated posts uncategorized.");
     } catch (PDOException $e) {
         $db->rollBack();
         $err = "Deletion failed: " . $e->getMessage();

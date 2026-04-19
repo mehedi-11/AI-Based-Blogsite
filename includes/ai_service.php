@@ -1,5 +1,5 @@
 <?php
-class GeminiService {
+class AIService {
     private $apiKey;
     private $apiUrl = "https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent";
 
@@ -29,7 +29,7 @@ class GeminiService {
         curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
         curl_setopt($ch, CURLOPT_POST, true);
         curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($data));
-        curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false); // Prevent XAMPP cert freezes
+        curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
         curl_setopt($ch, CURLOPT_HTTPHEADER, [
             'Content-Type: application/json'
         ]);
@@ -44,6 +44,8 @@ class GeminiService {
         
         if (isset($result['candidates'][0]['content']['parts'][0]['text'])) {
             return $result['candidates'][0]['content']['parts'][0]['text'];
+        } elseif (isset($result['error']['message'])) {
+            return ["error" => "Gemini API Error: " . $result['error']['message'], "details" => $result];
         } else {
             return ["error" => "Invalid response from Gemini API", "details" => $result];
         }
@@ -56,21 +58,17 @@ class GeminiService {
         2. A short excerpt (50 words).
         3. Full content (at least 500 words) formatted in HTML. Use <h2> and <h3> for headings, and <p> for paragraphs. DO NOT wrap the whole thing in a container, just give consecutive HTML tags.
         4. Suggested categories (comma separated).
+        5. Generated SEO keywords (comma separated, 5-8 keywords).
         
-        Format the entire response STRICTLY as a valid JSON object with keys: title, excerpt, content, categories. Do not include markdown blocks like ```json.";
+        Format the entire response STRICTLY as a valid JSON object with keys: title, excerpt, content, categories, seo_keywords. Do not include markdown blocks like ```json.";
         
         $response = $this->generateContent($prompt, "application/json");
         
-        // Check if the underlying generateContent failed and returned an array error
-        if (is_array($response)) {
-            return $response;
-        }
+        if (is_array($response)) return $response;
         
-        // Use regular expression to extract the outermost JSON object safely
         if (preg_match('/\{(?:[^{}]|(?R))*\}/s', $response, $matches)) {
             $jsonStr = $matches[0];
         } else {
-            // Fallback to just running it raw
             $jsonStr = trim($response);
             if (strpos($jsonStr, '```json') === 0) {
                 $jsonStr = substr($jsonStr, 7, -3);
@@ -99,7 +97,6 @@ class GeminiService {
         $response = $this->generateContent($prompt, "text/plain");
         if (is_array($response)) return $response['error'] ?? 'Error fetching content';
         
-        // Strip markdown backticks if present
         $clean = trim($response);
         if (strpos($clean, '```html') === 0) {
             $clean = substr($clean, 7, -3);

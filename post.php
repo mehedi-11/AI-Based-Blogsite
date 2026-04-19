@@ -1,9 +1,12 @@
 <?php
-require_once 'includes/header.php';
+require_once __DIR__.'/includes/config.php';
+require_once __DIR__.'/includes/functions.php';
 
 $slug = $_GET['slug'] ?? '';
 $stmt = $db->prepare("
-    SELECT p.*, c.name as category_name, COALESCE(NULLIF(u.name, ''), u.username) as author_name 
+    SELECT p.*, c.name as category_name,
+           COALESCE(NULLIF(u.name, ''), u.username) as author_name,
+           u.avatar as author_avatar, u.bio as author_bio, u.social_link as author_social
     FROM posts p 
     LEFT JOIN categories c ON p.category_id = c.id 
     LEFT JOIN users u ON p.author_id = u.id
@@ -11,6 +14,20 @@ $stmt = $db->prepare("
 ");
 $stmt->execute([$slug]);
 $post = $stmt->fetch();
+
+if ($post) {
+    // Pass variables to header.php for SEO/OpenGraph
+    $page_title = $post['title'];
+    $page_description = $post['excerpt'];
+    $page_keywords = $post['seo_keywords'] ?? ($post['category_name'] . ', blog, article');
+    if (!empty($post['featured_image'])) {
+        $og_image = (strpos($post['featured_image'], 'http') === 0 || strpos($post['featured_image'], '/') === 0) ? $post['featured_image'] : BASE_URL . $post['featured_image'];
+    }
+}
+
+require_once 'includes/header.php';
+
+
 
 if (!$post) {
     echo "<div class='container' style='padding-top: 100px;'><h1>Post not found.</h1></div>";
@@ -31,6 +48,8 @@ if (!$post) {
             <span style="color: var(--accent); font-weight: bold;"><i class="fa-solid fa-folder-open"></i> <?= htmlspecialchars($post['category_name']) ?></span>
             <span>&bull;</span>
             <span><i class="fa-solid fa-user-pen"></i> <?= htmlspecialchars($post['author_name']) ?></span>
+            <span>&bull;</span>
+            <span style="color: var(--text-muted); font-size: 0.9em; border: 1px solid var(--glass-border); padding: 0.2rem 0.6rem; border-radius: 12px; background: var(--glass);"><i class="fa-solid fa-clock"></i> <?= estimate_reading_time($post['content']) ?> Min Read</span>
         </div>
 
         <?php if (!empty($post['featured_image'])): ?>
@@ -48,6 +67,32 @@ if (!$post) {
     <div style="font-size: 1.15rem; line-height: 1.9; color: var(--text); margin-bottom: 4rem; text-align: justify; font-family: var(--font-main);">
         <?= $post['content'] ?>
     </div>
+
+    <!-- Author Bio Card -->
+    <?php if (!empty($post['author_name'])): ?>
+    <?php
+        $authorAvatar = !empty($post['author_avatar'])
+            ? BASE_URL . htmlspecialchars($post['author_avatar'])
+            : 'https://ui-avatars.com/api/?name=' . urlencode($post['author_name']) . '&background=6366f1&color=fff&bold=true&size=80';
+    ?>
+    <div style="background: var(--glass); border: 1px solid var(--glass-border); border-radius: 16px; padding: 1.5rem; display: flex; align-items: flex-start; gap: 1.5rem; margin-bottom: 3rem;">
+        <img src="<?= $authorAvatar ?>" alt="<?= htmlspecialchars($post['author_name']) ?>"
+             style="width: 72px; height: 72px; border-radius: 50%; object-fit: cover; flex-shrink: 0; border: 3px solid var(--accent);">
+        <div>
+            <p style="font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.1em; color: var(--text-muted); margin-bottom: 0.25rem;">Written by</p>
+            <p style="font-size: 1.1rem; font-weight: 700; color: var(--text); margin-bottom: 0.4rem;"><?= htmlspecialchars($post['author_name']) ?></p>
+            <?php if (!empty($post['author_bio'])): ?>
+                <p style="color: var(--text-muted); font-size: 0.95rem; line-height: 1.6;"><?= htmlspecialchars($post['author_bio']) ?></p>
+            <?php endif; ?>
+            <?php if (!empty($post['author_social'])): ?>
+                <a href="<?= htmlspecialchars($post['author_social']) ?>" target="_blank" rel="noopener"
+                   style="display: inline-flex; align-items: center; gap: 0.4rem; margin-top: 0.6rem; color: var(--accent); font-size: 0.9rem; font-weight: 600;">
+                    <i class="fa-solid fa-link"></i> View Profile
+                </a>
+            <?php endif; ?>
+        </div>
+    </div>
+    <?php endif; ?>
 
     <!-- Social Bar -->
     <?php
@@ -106,7 +151,7 @@ if (!$post) {
 <script>
 async function likePost(postId) {
     try {
-        const res = await fetch('admin/api.php?action=like_post', {
+        const res = await fetch('<?= BASE_URL ?>admin/api.php?action=like_post', {
             method: 'POST', body: JSON.stringify({post_id: postId})
         });
         const data = await res.json();
@@ -121,7 +166,7 @@ async function likePost(postId) {
 
 async function sharePost(postId) {
     try {
-        const res = await fetch('admin/api.php?action=share_post', {
+        const res = await fetch('<?= BASE_URL ?>admin/api.php?action=share_post', {
             method: 'POST', body: JSON.stringify({post_id: postId, platform: 'web'})
         });
         const data = await res.json();
@@ -147,7 +192,7 @@ document.getElementById('commentForm')?.addEventListener('submit', async (e) => 
     btn.disabled = true;
     
     try {
-        const res = await fetch('admin/api.php?action=submit_comment', {
+        const res = await fetch('<?= BASE_URL ?>admin/api.php?action=submit_comment', {
             method: 'POST',
             body: JSON.stringify({
                 post_id: document.getElementById('commentPostId').value,

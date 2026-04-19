@@ -3,30 +3,60 @@ require_once '../includes/admin_header.php';
 require_permission('posts');
 
 $msg = '';
+$is_author = ($user['role'] === 'author'); // Restrict scope for authors
 
 if (isset($_GET['delete'])) {
     $del_id = (int) $_GET['delete'];
-    $stmt = $db->prepare("DELETE FROM posts WHERE id = ?");
-    if ($stmt->execute([$del_id])) {
-        $msg = "Post deleted successfully.";
+    // Authors can only delete their own posts
+    if ($is_author) {
+        $stmt = $db->prepare("DELETE FROM posts WHERE id = ? AND author_id = ?");
+        if ($stmt->execute([$del_id, $_SESSION['user_id']])) {
+            $msg = "Post deleted successfully.";
+            log_notification('post_deleted', "Post ID #$del_id was deleted by author.");
+        } else {
+            $msg = "You can only delete your own posts.";
+        }
+    } else {
+        try {
+            $db->prepare("DELETE FROM posts WHERE id = ?")->execute([$del_id]);
+            $msg = "Blog post has been permanently removed.";
+            log_notification('post_deleted', "Post ID #$del_id was permanently deleted.");
+        } catch (PDOException $e) {
+        }
     }
 }
 
-// Fetch all posts for admin view
-$stmt = $db->query("
-    SELECT p.id, p.title, p.created_at, p.status, c.name as category_name, u.username as author_name
-    FROM posts p 
-    LEFT JOIN categories c ON p.category_id = c.id 
-    LEFT JOIN users u ON p.author_id = u.id
-    ORDER BY p.created_at DESC
-");
+// Fetch posts — authors see only their own, admins see all
+if ($is_author) {
+    $stmt = $db->prepare("
+        SELECT p.id, p.title, p.created_at, p.status, p.author_id,
+               c.name as category_name, u.username as author_name
+        FROM posts p 
+        LEFT JOIN categories c ON p.category_id = c.id 
+        LEFT JOIN users u ON p.author_id = u.id
+        WHERE p.author_id = ?
+        ORDER BY p.created_at DESC
+    ");
+    $stmt->execute([$_SESSION['user_id']]);
+} else {
+    $stmt = $db->query("
+        SELECT p.id, p.title, p.created_at, p.status, p.author_id,
+               c.name as category_name, u.username as author_name
+        FROM posts p 
+        LEFT JOIN categories c ON p.category_id = c.id 
+        LEFT JOIN users u ON p.author_id = u.id
+        ORDER BY p.created_at DESC
+    ");
+}
 $posts = $stmt->fetchAll();
 ?>
 
 <div class="mb-8 flex flex-col md:flex-row md:justify-between md:items-end gap-4">
     <div>
         <h1 class="text-3xl font-bold tracking-tight text-slate-900"><i class="fa-solid fa-table-list text-brand mr-2"></i> Manage Posts</h1>
-        <p class="text-slate-500 mt-1">View, edit, or delete the articles in your system.</p>
+        <p class="text-slate-500 mt-1">
+            <?= $is_author ? 'Your published articles.' : 'View, edit, or delete all articles.' ?>
+        </p>
     </div>
     <a href="create_post.php" class="bg-brand hover:bg-brandDark text-white font-bold py-2.5 px-6 rounded-lg transition-colors flex items-center justify-center gap-2 shadow-sm shrink-0">
         <i class="fa-solid fa-plus"></i> Create New Post
@@ -87,9 +117,17 @@ $posts = $stmt->fetchAll();
                                 <?= date('M j, Y', strtotime($post['created_at'])) ?>
                             </td>
                             <td class="py-4 px-6 text-right whitespace-nowrap">
-                                <a href="../post.php?slug=<?= urlencode(strtolower(trim(preg_replace('/[^A-Za-z0-9-]+/', '-', $post['title'])))) ?>" target="_blank" class="text-slate-400 hover:text-brand bg-white border border-slate-200 hover:border-brand px-3 py-2 rounded-lg transition-colors inline-block mr-2 shadow-sm" title="View"><i class="fa-solid fa-eye"></i></a>
-                                <a href="edit_post.php?id=<?= $post['id'] ?>" class="text-blue-500 hover:text-white bg-white border border-blue-200 hover:bg-blue-600 hover:border-blue-600 px-3 py-2 rounded-lg transition-all shadow-sm inline-block mr-2" title="Edit"><i class="fa-solid fa-pen-to-square"></i></a>
-                                <a href="?delete=<?= $post['id'] ?>" onclick="return confirm('Are you sure you want to permanently delete this post?');" class="text-red-400 hover:text-white bg-white border border-red-200 hover:bg-red-500 hover:border-red-500 px-3 py-2 rounded-lg transition-all shadow-sm inline-block" title="Delete"><i class="fa-solid fa-trash-can"></i></a>
+                                <a href="../post.php?slug=<?= urlencode(strtolower(trim(preg_replace('/[^A-Za-z0-9-]+/', '-', $post['title'])))) ?>" target="_blank" class="text-slate-500 hover:text-brand bg-white border border-slate-300 hover:border-brand px-3 py-2 rounded-lg transition-colors inline-flex items-center justify-center gap-2 shadow-sm mr-1" title="View Full Article">
+                                    <i class="fa-solid fa-eye text-sm"></i> <span class="text-xs font-bold uppercase hidden lg:inline">View</span>
+                                </a>
+                                <?php if (!$is_author || $post['author_id'] == $_SESSION['user_id']): ?>
+                                <a href="edit_post.php?id=<?= $post['id'] ?>" class="text-blue-600 hover:text-white bg-white border border-blue-200 hover:bg-blue-600 hover:border-blue-600 px-3 py-2 rounded-lg transition-all shadow-sm inline-flex items-center justify-center gap-2 mr-1" title="Edit Article">
+                                    <i class="fa-solid fa-pen text-sm"></i> <span class="text-xs font-bold uppercase hidden lg:inline">Edit</span>
+                                </a>
+                                <a href="?delete=<?= $post['id'] ?>" onclick="return confirm('Are you sure you want to permanently delete this post?');" class="text-red-500 hover:text-white bg-white border border-red-200 hover:bg-red-500 hover:border-red-500 px-3 py-2 rounded-lg transition-all shadow-sm inline-flex items-center justify-center gap-2" title="Delete Article">
+                                    <i class="fa-solid fa-trash text-sm"></i> <span class="text-xs font-bold uppercase hidden lg:inline">Delete</span>
+                                </a>
+                                <?php endif; ?>
                             </td>
                         </tr>
                     <?php endforeach; ?>

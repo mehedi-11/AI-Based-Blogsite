@@ -1,24 +1,20 @@
 <?php
 require_once '../includes/config.php';
 require_once '../includes/functions.php';
-require_once '../includes/gemini.php';
+require_once '../includes/ai_service.php';
 
 header('Content-Type: application/json');
 set_time_limit(300);
 error_reporting(E_ALL);
 ini_set('display_errors', 0);
 
-if (!is_logged_in()) {
-    echo json_encode(['error' => 'Unauthorized']);
-    exit;
-}
-
 $action = $_GET['action'] ?? '';
 $db_conn = $db; 
 
+// Trackers
 switch ($action) {
     case 'publish_hybrid_post':
-        if (!has_permission('ai_writer')) {
+        if (!is_logged_in() || !has_permission('ai_writer')) {
             echo json_encode(['error' => 'Forbidden']);
             exit;
         }
@@ -26,7 +22,9 @@ switch ($action) {
         $title = $_POST['title'] ?? '';
         $content = $_POST['content'] ?? '';
         $excerpt = $_POST['excerpt'] ?? '';
+        $seo_keywords = $_POST['seo_keywords'] ?? null;
         $category_id = isset($_POST['category_id']) && is_numeric($_POST['category_id']) ? (int)$_POST['category_id'] : null;
+        $author_id = isset($_POST['author_id']) && is_numeric($_POST['author_id']) ? (int)$_POST['author_id'] : $_SESSION['user_id'];
         
         if (!$category_id) {
             echo json_encode(['error' => 'Valid category is required']);
@@ -47,18 +45,22 @@ switch ($action) {
             }
         }
 
-        // publish_hybrid_post ending block
         try {
-            $stmt = $db_conn->prepare("INSERT INTO posts (title, slug, content, excerpt, featured_image, category_id, author_id) VALUES (?, ?, ?, ?, ?, ?, ?)");
-            $stmt->execute([$title, $slug, $content, $excerpt, $featured_image, $category_id, $_SESSION['user_id']]);
-            echo json_encode(["success" => true, "id" => $db_conn->lastInsertId()]);
+            $stmt = $db_conn->prepare("INSERT INTO posts (title, slug, content, excerpt, seo_keywords, featured_image, category_id, author_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
+            $stmt->execute([$title, $slug, $content, $excerpt, $seo_keywords, $featured_image, $category_id, $author_id]);
+            $post_id = $db_conn->lastInsertId();
+
+            // Log: Super Admin notification
+            log_notification('post_created', "New post created: \"$title\"", BASE_URL . "admin/edit_post.php?id=$post_id");
+
+            echo json_encode(["success" => true, "id" => $post_id]);
         } catch (PDOException $e) {
             echo json_encode(["error" => "Database error: " . $e->getMessage()]);
         }
         break;
 
     case 'update_hybrid_post':
-        if (!has_permission('posts')) {
+        if (!is_logged_in() || !has_permission('posts')) {
             echo json_encode(['error' => 'Forbidden']);
             exit;
         }
@@ -67,6 +69,7 @@ switch ($action) {
         $title = $_POST['title'] ?? '';
         $content = $_POST['content'] ?? '';
         $excerpt = $_POST['excerpt'] ?? '';
+        $seo_keywords = $_POST['seo_keywords'] ?? null;
         $category_id = isset($_POST['category_id']) && is_numeric($_POST['category_id']) ? (int)$_POST['category_id'] : null;
 
         if (!$category_id || !$post_id) {
@@ -89,12 +92,16 @@ switch ($action) {
 
         try {
             if ($featured_image) {
-                $stmt = $db_conn->prepare("UPDATE posts SET title = ?, slug = ?, content = ?, excerpt = ?, featured_image = ?, category_id = ? WHERE id = ?");
-                $stmt->execute([$title, $slug, $content, $excerpt, $featured_image, $category_id, $post_id]);
+                $stmt = $db_conn->prepare("UPDATE posts SET title = ?, slug = ?, content = ?, excerpt = ?, seo_keywords = ?, featured_image = ?, category_id = ? WHERE id = ?");
+                $stmt->execute([$title, $slug, $content, $excerpt, $seo_keywords, $featured_image, $category_id, $post_id]);
             } else {
-                $stmt = $db_conn->prepare("UPDATE posts SET title = ?, slug = ?, content = ?, excerpt = ?, category_id = ? WHERE id = ?");
-                $stmt->execute([$title, $slug, $content, $excerpt, $category_id, $post_id]);
+                $stmt = $db_conn->prepare("UPDATE posts SET title = ?, slug = ?, content = ?, excerpt = ?, seo_keywords = ?, category_id = ? WHERE id = ?");
+                $stmt->execute([$title, $slug, $content, $excerpt, $seo_keywords, $category_id, $post_id]);
             }
+
+            // Log: Super Admin notification
+            log_notification('post_edited', "Post updated: \"$title\"", BASE_URL . "admin/edit_post.php?id=$post_id");
+
             echo json_encode(["success" => true]);
         } catch (PDOException $e) {
             echo json_encode(["error" => "Database error: " . $e->getMessage()]);
@@ -102,22 +109,22 @@ switch ($action) {
         break;
 
     case 'ai_generate_excerpt':
-        if (!has_permission('ai_writer')) { echo json_encode(['error' => 'Forbidden']); exit; }
-        $input = json_decode(file_get_contents('php://input'), true);
-        if (empty($input['topic'])) { echo json_encode(['error' => 'Topic missing']); exit; }
-        $gemini = new GeminiService();
-        echo json_encode(['excerpt' => $gemini->generateExcerpt($input['topic'])]);
-        break;
-
     case 'ai_generate_content':
-        if (!has_permission('ai_writer')) { echo json_encode(['error' => 'Forbidden']); exit; }
+        if (!is_logged_in() || !has_permission('ai_writer')) { echo json_encode(['error' => 'Forbidden']); exit; }
         $input = json_decode(file_get_contents('php://input'), true);
         if (empty($input['topic'])) { echo json_encode(['error' => 'Topic missing']); exit; }
-        $gemini = new GeminiService();
-        echo json_encode(['content' => $gemini->generateHtmlContent($input['topic'])]);
+        $ai = new AIService();
+        
+        if ($action === 'ai_generate_excerpt') {
+            $response = $ai->generateExcerpt($input['topic']);
+            echo json_encode(is_array($response) && isset($response['error']) ? $response : ['excerpt' => $response]);
+        } else {
+            $response = $ai->generateBlogPost($input['topic']);
+            echo json_encode($response);
+        }
         break;
 
-    // --- VISITOR SOCIAL ENDPOINTS ---
+    // --- VISITOR SOCIAL ENDPOINTS (Public) ---
     case 'like_post':
         $input = json_decode(file_get_contents('php://input'), true);
         $post_id = $input['post_id'] ?? 0;
@@ -127,7 +134,19 @@ switch ($action) {
             $stmt = $db_conn->prepare("INSERT INTO post_likes (post_id, ip_address) VALUES (?, ?)");
             $stmt->execute([$post_id, $ip]);
             
-            // Get new count
+            // Get post info for notification
+            $p_stmt = $db_conn->prepare("SELECT title, author_id FROM posts WHERE id = ?");
+            $p_stmt->execute([$post_id]);
+            $p_data = $p_stmt->fetch();
+
+            if ($p_data) {
+                $msg = "Someone liked your post: \"{$p_data['title']}\"";
+                // Notify Author (Private)
+                log_notification('post_liked', $msg, BASE_URL . "post.php?slug=" . $post_id, $p_data['author_id'], null);
+                // Notify Super Admin (Global)
+                log_notification('post_liked', "Activity: \"{$p_data['title']}\" received a like.", null, null, null);
+            }
+
             $countStmt = $db_conn->prepare("SELECT COUNT(*) FROM post_likes WHERE post_id = ?");
             $countStmt->execute([$post_id]);
             echo json_encode(['success' => true, 'likes' => $countStmt->fetchColumn()]);
@@ -141,12 +160,27 @@ switch ($action) {
         $post_id = $input['post_id'] ?? 0;
         $platform = $input['platform'] ?? 'web';
         
-        $stmt = $db_conn->prepare("INSERT INTO post_shares (post_id, platform) VALUES (?, ?)");
-        $stmt->execute([$post_id, $platform]);
-        
-        $countStmt = $db_conn->prepare("SELECT COUNT(*) FROM post_shares WHERE post_id = ?");
-        $countStmt->execute([$post_id]);
-        echo json_encode(['success' => true, 'shares' => $countStmt->fetchColumn()]);
+        try {
+            $stmt = $db_conn->prepare("INSERT INTO post_shares (post_id, platform) VALUES (?, ?)");
+            $stmt->execute([$post_id, $platform]);
+
+            // Get post info
+            $p_stmt = $db_conn->prepare("SELECT title, author_id FROM posts WHERE id = ?");
+            $p_stmt->execute([$post_id]);
+            $p_data = $p_stmt->fetch();
+
+            if ($p_data) {
+                $msg = "Your post was shared: \"{$p_data['title']}\"";
+                log_notification('post_shared', $msg, null, $p_data['author_id'], null);
+                log_notification('post_shared', "Activity: \"{$p_data['title']}\" was shared via $platform.", null, null, null);
+            }
+            
+            $countStmt = $db_conn->prepare("SELECT COUNT(*) FROM post_shares WHERE post_id = ?");
+            $countStmt->execute([$post_id]);
+            echo json_encode(['success' => true, 'shares' => $countStmt->fetchColumn()]);
+        } catch (PDOException $e) {
+            echo json_encode(['success' => false, 'error' => $e->getMessage()]);
+        }
         break;
 
     case 'submit_comment':
@@ -160,10 +194,22 @@ switch ($action) {
             exit;
         }
         
-        $stmt = $db_conn->prepare("INSERT INTO comments (post_id, name, content) VALUES (?, ?, ?)");
-        if($stmt->execute([$post_id, $name, $content])) {
-            echo json_encode(['success' => true]);
-        } else {
+        try {
+            $stmt = $db_conn->prepare("INSERT INTO comments (post_id, name, content) VALUES (?, ?, ?)");
+            if($stmt->execute([$post_id, $name, $content])) {
+                // Get post info
+                $p_stmt = $db_conn->prepare("SELECT title, author_id FROM posts WHERE id = ?");
+                $p_stmt->execute([$post_id]);
+                $p_data = $p_stmt->fetch();
+
+                if ($p_data) {
+                    $msg = "$name commented on: \"{$p_data['title']}\"";
+                    log_notification('comment_added', $msg, BASE_URL . "admin/index.php", $p_data['author_id'], null);
+                    log_notification('comment_added', "New comment from $name on \"{$p_data['title']}\"", null, null, null);
+                }
+                echo json_encode(['success' => true]);
+            }
+        } catch (PDOException $e) {
             echo json_encode(['error' => 'Database error']);
         }
         break;

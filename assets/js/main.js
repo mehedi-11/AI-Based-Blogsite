@@ -76,8 +76,14 @@ document.addEventListener('DOMContentLoaded', () => {
                 const data = await response.json();
                 if (data.error) throw new Error(data.error);
                 
-                // Inject the generated HTML into the WYSIWYG editor securely
-                contentEditor.innerHTML = data.content;
+                // Inject the generated blocks
+                contentEditor.innerHTML = data.content || '';
+                if(data.title) document.getElementById('postTitle').value = data.title;
+                if(data.excerpt) document.getElementById('postExcerpt').value = data.excerpt;
+                if(data.seo_keywords) {
+                    let kwInput = document.getElementById('postKeywords');
+                    if(kwInput) kwInput.value = data.seo_keywords;
+                }
             } catch (err) {
                 alert('AI Error: ' + err.message);
             } finally {

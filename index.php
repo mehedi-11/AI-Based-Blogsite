@@ -29,14 +29,18 @@ $posts = $stmt->fetchAll();
             <?php foreach($posts as $post): ?>
                 <div class="card glass" style="padding: 0; overflow: hidden; border-radius: 8px;">
                     <?php if (!empty($post['featured_image'])): ?>
-                        <div style="height: 200px; width: 100%; background: url('<?= htmlspecialchars($post['featured_image']) ?>') center/cover;"></div>
+                        <?php $full_image = (strpos($post['featured_image'], 'http') === 0 || strpos($post['featured_image'], '/') === 0) ? $post['featured_image'] : BASE_URL . $post['featured_image']; ?>
+                        <div style="height: 200px; width: 100%; background: url('<?= htmlspecialchars($full_image) ?>') center/cover;"></div>
                     <?php else: ?>
                         <div style="height: 200px; width: 100%; background: var(--secondary); display: flex; align-items: center; justify-content: center; color: var(--text-muted);">
                             <i class="fa-solid fa-image fa-3x"></i>
                         </div>
                     <?php endif; ?>
                     <div style="padding: 1.5rem; display: flex; flex-direction: column; gap: 1rem; flex-grow: 1;">
-                        <span class="card-meta"><i class="fa-solid fa-folder-open"></i> <?= htmlspecialchars($post['category_name'] ?? 'Uncategorized') ?></span>
+                        <span class="card-meta" style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
+                            <span><i class="fa-solid fa-folder-open"></i> <?= htmlspecialchars($post['category_name'] ?? 'Uncategorized') ?></span>
+                            <span style="color: var(--text-muted); font-size: 0.85em;"><i class="fa-solid fa-clock"></i> <?= estimate_reading_time($post['content']) ?> Min</span>
+                        </span>
                         <h3 style="font-size: 1.25rem; font-family: var(--font-main); line-height: 1.3;"><?= htmlspecialchars($post['title']) ?></h3>
                         <p style="display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; font-size: 0.95rem; color: var(--text-muted);">
                             <?= htmlspecialchars($post['excerpt']) ?>

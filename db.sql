@@ -13,7 +13,7 @@ CREATE TABLE settings (
 -- Default Settings
 INSERT INTO settings (`key_name`, `value`) VALUES
 ('site_name', 'AI Blogsite By Mehedi'),
-('logo_url', '/AI-Based-Blogsite/assets/images/logo.png'),
+('logo_url', 'assets/images/logo.png'),
 ('theme_mode', 'dark'), 
 ('accent_color', '#3b82f6'),
 ('bg_color', '#0f172a');
@@ -21,10 +21,15 @@ INSERT INTO settings (`key_name`, `value`) VALUES
 -- Users Table (Super Admins, Admins, Authors)
 CREATE TABLE users (
     `id` INT AUTO_INCREMENT PRIMARY KEY,
+    `name` VARCHAR(100) NOT NULL,
     `username` VARCHAR(50) NOT NULL UNIQUE,
     `password` VARCHAR(255) NOT NULL,
     `email` VARCHAR(100) NOT NULL UNIQUE,
+    `phone` VARCHAR(20) UNIQUE,
     `role` ENUM('super_admin', 'admin', 'author') DEFAULT 'admin',
+    `bio` TEXT DEFAULT NULL,
+    `social_link` VARCHAR(255) DEFAULT NULL,
+    `avatar` VARCHAR(255) DEFAULT NULL,
     `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -37,9 +42,10 @@ CREATE TABLE admin_permissions (
 );
 
 -- Default Super Admin (Password: admin123)
--- $2y$10$7rls.66.pZjx3R7X9XyG3.j5fVp8Yp6k9j5fVp8Yp6k9j5fVp8Yp6
-INSERT INTO users (`id`, `username`, `password`, `email`, `role`) VALUES 
-(1, 'admin', '$2y$10$7rls.66.pZjx3R7X9XyG3.j5fVp8Yp6k9j5fVp8Yp6k9j5fVp8Yp6', 'admin@example.com', 'super_admin');
+-- MD Mehedi Hasan | Mehedi19 | mehedi@gmail.com | 0123654789 | 15253545
+-- $2y$10$DrTn4Ql2mBuJfcud881BPeB4bPmEsSMkfwjLSmzysvpwFPd2q5F6i
+INSERT INTO users (`id`, `name`, `username`, `password`, `email`, `phone`, `role`) VALUES 
+(1, 'MD Mehedi Hasan', 'Mehedi19', '$2y$10$DrTn4Ql2mBuJfcud881BPeB4bPmEsSMkfwjLSmzysvpwFPd2q5F6i', 'mehedi@gmail.com', '0123654789', 'super_admin');
 
 -- Super Admin gets all permissions implicitly in code, but we can assign them explicitly for safety
 INSERT INTO admin_permissions (`user_id`, `module`) VALUES 
@@ -59,6 +65,7 @@ CREATE TABLE posts (
     `slug` VARCHAR(255) NOT NULL UNIQUE,
     `content` TEXT NOT NULL,
     `excerpt` TEXT,
+    `seo_keywords` VARCHAR(255),
     `featured_image` VARCHAR(255),
     `category_id` INT,
     `author_id` INT,
@@ -70,7 +77,36 @@ CREATE TABLE posts (
 );
 
 -- Default Categories
-INSERT INTO categories (`name`, `slug`) VALUES 
 ('Technology', 'technology'), 
 ('AI & Ethics', 'ai-ethics'), 
 ('Future Tech', 'future-tech');
+
+-- Comments Table
+CREATE TABLE comments (
+    `id` INT AUTO_INCREMENT PRIMARY KEY,
+    `post_id` INT NOT NULL,
+    `name` VARCHAR(100) NOT NULL,
+    `content` TEXT NOT NULL,
+    `status` ENUM('pending', 'approved') DEFAULT 'approved',
+    `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (`post_id`) REFERENCES posts(`id`) ON DELETE CASCADE
+);
+
+-- Post Likes Table
+CREATE TABLE post_likes (
+    `id` INT AUTO_INCREMENT PRIMARY KEY,
+    `post_id` INT NOT NULL,
+    `ip_address` VARCHAR(45) NOT NULL,
+    `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (`post_id`) REFERENCES posts(`id`) ON DELETE CASCADE,
+    UNIQUE KEY `one_like_per_ip` (`post_id`, `ip_address`)
+);
+
+-- Post Shares Table
+CREATE TABLE post_shares (
+    `id` INT AUTO_INCREMENT PRIMARY KEY,
+    `post_id` INT NOT NULL,
+    `platform` VARCHAR(50) NOT NULL,
+    `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (`post_id`) REFERENCES posts(`id`) ON DELETE CASCADE
+);
