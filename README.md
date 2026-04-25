@@ -1,6 +1,6 @@
-# 🧠 AI-Based Blog Platform (BWM - Blog with Mehedi)
+# 🧠 AI-Based Blog Platform
 
-A professional, high-performance blog publishing platform featuring hybrid human-AI content generation, a responsive Tailwind CSS administrative backend, and formal visitor aesthetics.
+A professional, high-performance blog publishing platform featuring hybrid human-AI content generation, a responsive Tailwind CSS administrative backend, and modern aesthetics.
 
 ## 🚀 Key Features
 
@@ -26,19 +26,25 @@ A professional, high-performance blog publishing platform featuring hybrid human
     ```
 
 2.  **Database Configuration**:
-    -   Import the `db.sql` file into your local MySQL server (XAMPP/WAMP).
-    -   Alternatively, run `php setup_db.php` from your terminal to automate the schema creation.
+    -   Import the `database.sql` file into your local MySQL server (XAMPP/WAMP).
+    -   Alternatively, run `php setup_db.php` from your terminal to automate the schema creation and directory setup.
 
 3.  **App Configuration**:
     -   Copy `includes/config.example.php` to `includes/config.php`.
-    -   Add your **Gemini API Key** and your local **Database Credentials**.
+    -   Add your **Gemini API Key** and your local **Database Credentials** in `includes/config.php`.
     -   Adjust the `BASE_URL` to match your local installation folder.
+    -   **Note**: `includes/config.php` is ignored by Git for security.
 
 4.  **Local Development**:
     -   Ensure your server's rewrite rules allow access to the folder.
-    -   Default Login: Username: `Mehedi19` | Password: `Mehedi@129221` (or as configured in `users` table).
+    -   **Default Login**: 
+        -   Username: `Mehedi19`
+        -   Password: `Mehedi@129221` (or as configured in the `users` table).
+
+## 🔐 Security Note
+
+Always keep your `GEMINI_API_KEY` private. Never upload your `includes/config.php` to public repositories. This project uses a `.gitignore` file to ensure sensitive information stays local.
 
 ## 📄 License
 
-Professional Use Only. 
-Developed for **MD Mehedi Hasan**.
+Developed by **MD Mehedi Hasan**.

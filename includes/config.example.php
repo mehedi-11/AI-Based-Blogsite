@@ -6,7 +6,7 @@ define('DB_USER', 'root');
 define('DB_PASS', '');
 define('DB_NAME', 'ai_blogsite');
 
-define('GEMINI_API_KEY', 'AIzaSyCO9lwsKfMz2PyHPfmFNLC7m9oUzx44_iA');
+define('GEMINI_API_KEY', 'YOUR_GEMINI_API_KEY_HERE');
 define('BASE_URL', 'http://localhost/AI-Based-Blogsite/');
 
 try {
